@@ -1254,12 +1254,22 @@ function (cotire_scan_includes _includesVar)
 		# cl.exe messes with the output streams unless the environment variable VS_UNICODE_OUTPUT is cleared
 		unset (ENV{VS_UNICODE_OUTPUT})
 	endif()
-	execute_process(
-		COMMAND ${_cmd}
-		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-		RESULT_VARIABLE _result
-		OUTPUT_QUIET
-		ERROR_VARIABLE _output)
+	get_filename_component (_compilerExec "${_option_COMPILER_EXECUTABLE}" NAME_WE)
+	if (_compilerExec MATCHES "clang-cl")
+		execute_process(
+			COMMAND ${_cmd}
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+			RESULT_VARIABLE _result
+			OUTPUT_VARIABLE _output
+			ERROR_QUIET)
+	else()
+		execute_process(
+			COMMAND ${_cmd}
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+			RESULT_VARIABLE _result
+			OUTPUT_QUIET
+			ERROR_VARIABLE _output)
+	endif()
 	if (_result)
 		message (STATUS "Result ${_result} scanning includes of ${_existingSourceFiles}.")
 	endif()
@@ -1456,8 +1466,14 @@ function (cotire_generate_prefix_header _prefixFile)
 	elseif (_option_COMPILER_ID MATCHES "GNU")
 		set (_prologue "#pragma GCC system_header")
 	elseif (_option_COMPILER_ID MATCHES "MSVC")
-		set (_prologue "#pragma warning(push, 0)")
-		set (_epilogue "#pragma warning(pop)")
+		get_filename_component (_compilerExec "${_option_COMPILER_EXECUTABLE}" NAME_WE)
+		if (_compilerExec MATCHES "clang-cl")
+			set (_prologue "#pragma clang diagnostic push\n#pragma clang diagnostic ignored \"-Weverything\"")
+			set (_epilogue "#pragma clang diagnostic pop")
+		else()
+			set (_prologue "#pragma warning(push, 0)")
+			set (_epilogue "#pragma warning(pop)")
+		endif()
 	elseif (_option_COMPILER_ID MATCHES "Intel")
 		# Intel compiler requires hdrstop pragma to stop generating PCH file
 		set (_epilogue "#pragma hdrstop")
@@ -1500,16 +1516,23 @@ function (cotire_add_makedep_flags _language _compilerID _compilerVersion _flags
 		# /nologo suppresses display of sign-on banner
 		# /TC treat all files named on the command line as C source files
 		# /TP treat all files named on the command line as C++ source files
+		# /Zs syntax check only
 		# /EP preprocess to stdout without #line directives
 		# /showIncludes list include files
 		set (_sourceFileTypeC "/TC")
 		set (_sourceFileTypeCXX "/TP")
+		get_filename_component (_compilerExec "${CMAKE_${_language}_COMPILER}" NAME_WE)
+		if (_compilerExec MATCHES "clang-cl")
+			set (_noObjectFlag "/Zs")
+		else()
+			set (_noObjectFlag "/EP")
+		endif()
 		if (_flags)
 			# append to list
-			list (APPEND _flags /nologo "${_sourceFileType${_language}}" /EP /showIncludes)
+			list (APPEND _flags /nologo "${_sourceFileType${_language}}" "${_noObjectFlag}" /showIncludes)
 		else()
 			# return as a flag string
-			set (_flags "${_sourceFileType${_language}} /EP /showIncludes")
+			set (_flags "${_sourceFileType${_language}} ${_noObjectFlag} /showIncludes")
 		endif()
 	elseif (_compilerID MATCHES "GNU")
 		# GCC options used
@@ -2842,6 +2865,11 @@ endfunction()
 function (cotire_process_target_language _language _configurations _target _wholeTarget _cmdsVar)
 	set (${_cmdsVar} "" PARENT_SCOPE)
 	get_target_property(_targetSourceFiles ${_target} SOURCES)
+	get_filename_component (_compilerExec "${CMAKE_${_language}_COMPILER}" NAME_WE)
+	if (_compilerExec MATCHES "clang-cl")
+		set (CMAKE_${_language}_COMPILER_ID "MSVC" PARENT_SCOPE)
+		set (CMAKE_${_language}_COMPILER_ID "MSVC")
+	endif()
 	set (_sourceFiles "")
 	set (_excludedSources "")
 	set (_cotiredSources "")
@@ -2896,7 +2924,7 @@ function (cotire_process_target_language _language _configurations _target _whol
 				if (CMAKE_${_language}_COMPILER_ID MATCHES "MSVC" AND "${CMAKE_GENERATOR}" MATCHES "Make|Ninja")
 					# use stub file to link in precompiled header
 					string (REGEX REPLACE "\\.[^.]*$" "_stub.cxx" _stubFile "${_prefixFile}")
-					file (WRITE "${_stubFile}" "#include \"${_prefixFile}\"")
+					file (WRITE "${_stubFile}" "#include \"${_prefixFile}\"\n")
 					list (INSERT _sourceFiles 0 "${_stubFile}")
 					string (REGEX REPLACE "\\.[^.]*$" ".obj" _stubObjFile "${_stubFile}")
 					set_property (SOURCE "${_stubObjFile}" PROPERTY GENERATED TRUE)
