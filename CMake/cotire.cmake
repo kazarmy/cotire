@@ -2371,6 +2371,17 @@ function (cotire_setup_pch_file_inclusion _language _target _wholeTarget _prefix
 		endif()
 		# make object files generated from source files depend on precompiled header
 		set_property (SOURCE ${_sourceFiles} APPEND PROPERTY OBJECT_DEPENDS "${_pchFile}")
+		# handle automatic Qt processing
+		get_target_property(_targetAutoMoc ${_target} AUTOMOC)
+		get_target_property(_targetAutoUic ${_target} AUTOUIC)
+		get_target_property(_targetAutoRcc ${_target} AUTORCC)
+		if (_targetAutoMoc OR _targetAutoUic OR _targetAutoRcc)
+			if (CMAKE_VERSION VERSION_LESS "3.8.0")
+				set_property (SOURCE "${_target}_automoc.cpp" APPEND PROPERTY OBJECT_DEPENDS "${_pchFile}")
+			else()
+				set_property (SOURCE "${_target}_autogen/moc_compilation.cpp" APPEND PROPERTY OBJECT_DEPENDS "${_pchFile}")
+			endif()
+		endif()
 	endif()
 endfunction()
 
