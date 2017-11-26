@@ -1538,18 +1538,19 @@ function (cotire_add_makedep_flags _language _compilerID _compilerVersion _flags
 		# GCC options used
 		# -H print the name of each header file used
 		# -E invoke preprocessor
+		# -Wno-unused-macros warning incompatible with -fdirectives-only
 		# -fdirectives-only do not expand macros, requires GCC >= 4.3
 		if (_flags)
 			# append to list
 			list (APPEND _flags -H -E)
 			if (NOT "${_compilerVersion}" VERSION_LESS "4.3.0")
-				list (APPEND _flags "-fdirectives-only")
+				list (APPEND _flags "-Wno-unused-macros" "-fdirectives-only")
 			endif()
 		else()
 			# return as a flag string
 			set (_flags "-H -E")
 			if (NOT "${_compilerVersion}" VERSION_LESS "4.3.0")
-				set (_flags "${_flags} -fdirectives-only")
+				set (_flags "${_flags} -Wno-unused-macros -fdirectives-only")
 			endif()
 		endif()
 	elseif (_compilerID MATCHES "Clang")
