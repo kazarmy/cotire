@@ -542,6 +542,15 @@ function (cotire_get_target_include_directories _config _language _target _inclu
 		list (APPEND _includeDirs "${CMAKE_CURRENT_BINARY_DIR}")
 		list (APPEND _includeDirs "${CMAKE_CURRENT_SOURCE_DIR}")
 	endif()
+	# Qt include dir
+	get_target_property(_targetAutoMoc ${_target} AUTOMOC)
+	get_target_property(_targetAutoUic ${_target} AUTOUIC)
+	get_target_property(_targetAutoRcc ${_target} AUTORCC)
+	if (_targetAutoMoc OR _targetAutoUic OR _targetAutoRcc)
+		if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.8.0")
+			list (APPEND _includeDirs "${CMAKE_CURRENT_BINARY_DIR}/${_target}_autogen/include")
+		endif()
+	endif()
 	set (_targetFlags "")
 	cotire_get_target_compile_flags("${_config}" "${_language}" "${_target}" _targetFlags)
 	# parse additional include directories from target compile flags
