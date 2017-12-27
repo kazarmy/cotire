@@ -534,6 +534,15 @@ function (cotire_get_target_compile_flags _config _language _target _flagsVar)
 	set (${_flagsVar} ${_compileFlags} PARENT_SCOPE)
 endfunction()
 
+function (cotire_change_to_relative_paths _includeDirsVar)
+	set (_relIncludeDirs "")
+	foreach (_dir ${${_includeDirsVar}})
+		file (RELATIVE_PATH _relDir "${CMAKE_BINARY_DIR}" "${_dir}")
+		list (APPEND _relIncludeDirs "${_relDir}")
+	endforeach()
+	set (${_includeDirsVar} ${_relIncludeDirs} PARENT_SCOPE)
+endfunction()
+
 function (cotire_get_target_include_directories _config _language _target _includeDirsVar _systemIncludeDirsVar)
 	set (_includeDirs "")
 	set (_systemIncludeDirs "")
@@ -588,6 +597,10 @@ function (cotire_get_target_include_directories _config _language _target _inclu
 		if (_targetDirs)
 			list (APPEND _systemIncludeDirs ${_targetDirs})
 		endif()
+	endif()
+	if ("${CMAKE_GENERATOR}" MATCHES "Ninja")
+		cotire_change_to_relative_paths(_includeDirs)
+		cotire_change_to_relative_paths(_dirs)
 	endif()
 	# interface include directories from linked library targets
 	if (_target)
@@ -2337,12 +2350,17 @@ function (cotire_setup_pch_file_compilation _language _target _targetScript _pre
 				list (APPEND _outputFiles "${_hostObjFile}")
 				set_property (SOURCE "${_hostObjFile}" PROPERTY GENERATED TRUE)
 			endif()
+			if ("${CMAKE_GENERATOR}" MATCHES "Ninja")
+				set (_workDir "${CMAKE_BINARY_DIR}")
+			else()
+				set (_workDir "${CMAKE_CURRENT_SOURCE_DIR}")
+			endif()
 			add_custom_command(
 				OUTPUT ${_outputFiles}
 				COMMAND ${_cmds}
 				DEPENDS "${_prefixFile}" "${_realCompilerExe}"
 				IMPLICIT_DEPENDS ${_language} "${_prefixFile}"
-				WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+				WORKING_DIRECTORY "${_workDir}"
 				COMMENT "Building ${_language} precompiled header ${_pchFileLogPath}"
 				VERBATIM)
 		endif()
